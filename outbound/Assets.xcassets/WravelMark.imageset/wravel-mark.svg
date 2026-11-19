@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="54" height="27" viewBox="27 40.5 54 27" role="img" aria-label="wravel">
+  <!-- The wravel W ("Fold"): a flat ribbon folded into a W, faces alternating light and darker, drawn back to front. Same geometry as wravel-android's ic_launcher_foreground.xml. -->
+  <path fill="#5E5E5E" d="M60.75 67.5L69.75 67.5L81 40.5L72 40.5Z"/>
+  <path fill="#EDEDED" d="M49.5 40.5L58.5 40.5L69.75 67.5L60.75 67.5Z"/>
+  <path fill="#5E5E5E" d="M38.25 67.5L47.25 67.5L58.5 40.5L49.5 40.5Z"/>
+  <path fill="#EDEDED" d="M27 40.5L36 40.5L47.25 67.5L38.25 67.5Z"/>
+</svg>
