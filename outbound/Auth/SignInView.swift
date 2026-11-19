@@ -45,8 +45,11 @@ struct SignInView: View {
                 if let errorMessage {
                     Text(errorMessage)
                         .font(.footnote)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color.appError)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(14)
+                        .background(Color.appError.opacity(0.15), in: .rect(cornerRadius: appFieldCornerRadius))
+                        .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .top)))
                 }
 
                 Button(action: submit) {
@@ -74,6 +77,7 @@ struct SignInView: View {
             }
             .padding(24)
             .padding(.top, 60)
+            .animation(.steepEase(duration: 0.4), value: errorMessage)
         }
         .scrollDismissesKeyboard(.interactively)
         .background(Color(white: 0.05).ignoresSafeArea())
