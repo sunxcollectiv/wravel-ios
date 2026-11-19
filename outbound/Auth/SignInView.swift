@@ -80,13 +80,14 @@ struct SignInView: View {
 
     private var header: some View {
         VStack(spacing: 8) {
-            Image("OutboundWordmark")
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 152)
-                .padding(.bottom, 16)
-                .accessibilityLabel("Outbound")
+            VStack(spacing: 10) {
+                WravelMark()
+                    .frame(width: 72)
+                Text("wravel")
+                    .font(.subheadline.weight(.medium))
+                    .tracking(1)
+            }
+            .padding(.bottom, 16)
             Text(mode == .signIn ? "Where are we going next?" : "Create your account")
                 .foregroundStyle(.secondary)
         }
