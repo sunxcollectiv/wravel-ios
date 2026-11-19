@@ -76,6 +76,7 @@ struct SignInView: View {
             .padding(.top, 60)
         }
         .scrollDismissesKeyboard(.interactively)
+        .background(Color(white: 0.05).ignoresSafeArea())
     }
 
     private var header: some View {
