@@ -37,9 +37,7 @@ struct SignInView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .fieldStyle()
-                    SecureField("Password", text: $password)
-                        .textContentType(mode == .signIn ? .password : .newPassword)
-                        .fieldStyle()
+                    PasswordField(text: $password, contentType: mode == .signIn ? .password : .newPassword)
                 }
 
                 if let errorMessage {
@@ -111,6 +109,61 @@ struct SignInView: View {
             } catch {
                 errorMessage = error.localizedDescription
             }
+        }
+    }
+}
+
+/// The password input: a secure field with an eye on its trailing edge that reveals or
+/// hides the text, keeping the keyboard up across the switch.
+private struct PasswordField: View {
+    @Binding var text: String
+    let contentType: UITextContentType
+
+    @State private var isRevealed = false
+    @FocusState private var focus: Field?
+
+    private enum Field { case hidden, revealed }
+
+    var body: some View {
+        ZStack {
+            // A secure field is a touch shorter than a text field, so size the row off a
+            // hidden text field: the height then matches the other fields in both states.
+            TextField("", text: .constant(""))
+                .hidden()
+                .disabled(true)
+                .accessibilityHidden(true)
+            if isRevealed {
+                TextField("Password", text: $text)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .focused($focus, equals: .revealed)
+            } else {
+                SecureField("Password", text: $text)
+                    .focused($focus, equals: .hidden)
+            }
+        }
+        .textContentType(contentType)
+        .multilineTextAlignment(.center)
+        // Keep the text clear of the eye on both sides so it stays centered.
+        .padding(.horizontal, 30)
+        .appField()
+        .overlay(alignment: .trailing) {
+            Button {
+                let wasFocused = focus != nil
+                isRevealed.toggle()
+                if wasFocused {
+                    // The new field exists only after this update, so focus it next pass.
+                    Task { @MainActor in focus = isRevealed ? .revealed : .hidden }
+                }
+            } label: {
+                Image(systemName: isRevealed ? "eye.slash" : "eye")
+                    .foregroundStyle(Color.black.opacity(0.45))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.trailing, 2)
+            .accessibilityLabel(isRevealed ? "Hide password" : "Show password")
         }
     }
 }
