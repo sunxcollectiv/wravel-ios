@@ -14,7 +14,7 @@ struct AddLodgingPopup: View {
     let onClose: () -> Void
 
     /// The inbox that turns forwarded booking emails into trip items.
-    static let tripsEmail = "trips@outbound.earth"
+    static let tripsEmail = "trips@wravel.app"
 
     @State private var copied = false
 
