@@ -110,7 +110,7 @@ struct TripFormView: View {
                             groupPartNote(groupPart)
                         }
 
-                        TextField("Trip name", text: $title)
+                        TextField("Trip name", text: $title, prompt: appFieldPrompt("Trip name"))
                             .textInputAutocapitalization(.words)
                             .appField()
 
@@ -149,7 +149,7 @@ struct TripFormView: View {
                                 .foregroundStyle(Color.appForeground.opacity(0.7))
                         }
 
-                        TextField("Description (optional)", text: $description, axis: .vertical)
+                        TextField("Description (optional)", text: $description, prompt: appFieldPrompt("Description (optional)"), axis: .vertical)
                             .lineLimit(3...6)
                             .appField()
 

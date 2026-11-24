@@ -26,12 +26,12 @@ struct SignInView: View {
 
                 VStack(spacing: 12) {
                     if mode == .signUp {
-                        TextField("Name", text: $name)
+                        TextField("Name", text: $name, prompt: appFieldPrompt("Name"))
                             .textContentType(.name)
                             .textInputAutocapitalization(.words)
                             .fieldStyle()
                     }
-                    TextField("Email", text: $email)
+                    TextField("Email", text: $email, prompt: appFieldPrompt("Email"))
                         .textContentType(.emailAddress)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
@@ -133,12 +133,12 @@ private struct PasswordField: View {
                 .disabled(true)
                 .accessibilityHidden(true)
             if isRevealed {
-                TextField("Password", text: $text)
+                TextField("Password", text: $text, prompt: appFieldPrompt("Password"))
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .focused($focus, equals: .revealed)
             } else {
-                SecureField("Password", text: $text)
+                SecureField("Password", text: $text, prompt: appFieldPrompt("Password"))
                     .focused($focus, equals: .hidden)
             }
         }

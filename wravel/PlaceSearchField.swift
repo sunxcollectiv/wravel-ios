@@ -77,7 +77,7 @@ struct PlaceSearchField: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                TextField(placeholder, text: $text)
+                TextField(placeholder, text: $text, prompt: appFieldPrompt(placeholder))
                     .textInputAutocapitalization(.words)
                     .autocorrectionDisabled()
                     .focused($isFocused)

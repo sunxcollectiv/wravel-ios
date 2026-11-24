@@ -124,6 +124,13 @@ extension View {
 /// Shared corner radius for input fields and buttons, keeping them visually in sync.
 let appFieldCornerRadius: CGFloat = 10
 
+/// The grey placeholder of an `appField`, for a text field's `prompt:`. Left to the
+/// system, the placeholder colour follows the device appearance, and in dark mode it is
+/// a light grey that disappears on the white field.
+func appFieldPrompt(_ title: String) -> Text {
+    Text(title).foregroundStyle(Color.black.opacity(0.3))
+}
+
 /// A navigation-bar button styled consistently across the app: the system
 /// Liquid Glass background is suppressed so the control reads as a plain glyph
 /// or label rather than a circular capsule.
