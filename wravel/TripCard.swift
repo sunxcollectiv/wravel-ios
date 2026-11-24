@@ -83,9 +83,11 @@ struct TripCard: View {
     }
 }
 
+#if DEBUG
 #Preview {
     TripCard(trip: .sample)
         .frame(width: 180)
         .padding()
         .appTheme()
 }
+#endif

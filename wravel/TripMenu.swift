@@ -160,6 +160,7 @@ private struct TripMenuRowStyle: ButtonStyle {
     }
 }
 
+#if DEBUG
 #Preview {
     ZStack(alignment: .topTrailing) {
         Color.black.ignoresSafeArea()
@@ -167,3 +168,4 @@ private struct TripMenuRowStyle: ButtonStyle {
             .padding()
     }
 }
+#endif

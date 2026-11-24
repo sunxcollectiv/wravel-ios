@@ -1506,6 +1506,7 @@ private struct DayPager<Content: View>: View {
     }
 }
 
+#if DEBUG
 #Preview {
     NavigationStack {
         TripDetailView(trip: .sample, days: ItineraryDay.sampleDays)
@@ -1514,6 +1515,7 @@ private struct DayPager<Content: View>: View {
     .environment(AuthStore())
     .environment(CreditStore())
 }
+#endif
 
 /// Fades content in, optionally sliding it up, once `isRevealed` turns true.
 private struct RevealIn: ViewModifier {

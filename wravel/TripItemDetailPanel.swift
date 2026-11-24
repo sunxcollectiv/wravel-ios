@@ -445,6 +445,7 @@ private struct DarkPillButtonStyle: ButtonStyle {
     }
 }
 
+#if DEBUG
 #Preview {
     ScrollView {
         TripItemDetailPanel(item: .sample, anchor: 0) {}
@@ -453,3 +454,4 @@ private struct DarkPillButtonStyle: ButtonStyle {
     .background(Color.appBackground)
     .environment(AuthStore())
 }
+#endif
