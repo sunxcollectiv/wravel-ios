@@ -72,7 +72,7 @@ struct AreaPickerSheet: View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(Color.black.opacity(0.45))
-            TextField("Search cities and countries", text: $text)
+            TextField("Search cities and countries", text: $text, prompt: appFieldPrompt("Search cities and countries"))
                 .textInputAutocapitalization(.words)
                 .autocorrectionDisabled()
                 .focused($isFocused)

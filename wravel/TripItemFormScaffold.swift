@@ -91,7 +91,7 @@ struct TripItemFormScaffold<Places: View, AfterTimes: View>: View {
                         }
 
                         if draft.hasTitleField {
-                            TextField("Title", text: $draft.title)
+                            TextField("Title", text: $draft.title, prompt: appFieldPrompt("Title"))
                                 .textInputAutocapitalization(.never)
                                 .appField()
                         }
@@ -126,7 +126,7 @@ struct TripItemFormScaffold<Places: View, AfterTimes: View>: View {
                                 .id(Self.errorAnchor)
                         }
 
-                        TextField("Notes (optional)", text: $draft.notes, axis: .vertical)
+                        TextField("Notes (optional)", text: $draft.notes, prompt: appFieldPrompt("Notes (optional)"), axis: .vertical)
                             .lineLimit(3...6)
                             .appField()
                     }

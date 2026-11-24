@@ -53,7 +53,7 @@ struct MemberInvitePopup: View {
         HStack(spacing: 8) {
             Image(systemName: "envelope")
                 .foregroundStyle(Color.black.opacity(0.45))
-            TextField("Email address", text: $text)
+            TextField("Email address", text: $text, prompt: appFieldPrompt("Email address"))
                 .keyboardType(.emailAddress)
                 .textContentType(.emailAddress)
                 .textInputAutocapitalization(.never)

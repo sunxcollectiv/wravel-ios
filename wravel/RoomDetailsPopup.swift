@@ -174,7 +174,7 @@ struct RoomDetailsPopup: View {
     private func field(_ label: String, placeholder: String, text: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             self.label(label)
-            TextField(placeholder, text: text)
+            TextField(placeholder, text: text, prompt: appFieldPrompt(placeholder))
                 .textInputAutocapitalization(.words)
                 .appField()
         }
