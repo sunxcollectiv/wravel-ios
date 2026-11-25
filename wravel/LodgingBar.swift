@@ -27,8 +27,9 @@ struct LodgingBar: View {
     let onOpen: (TripItem) -> Void
     /// A stay was long-pressed.
     let onEdit: (TripItem) -> Void
-    /// The empty bar of a day with no lodging was tapped.
-    let onAdd: () -> Void
+    /// The empty bar of a day with no lodging was tapped. Nil for a bar that stays
+    /// empty, with no invitation to add (the After page).
+    let onAdd: (() -> Void)?
 
     /// What's drawn: the day's segments, plus any still sliding off from the day before.
     @State private var segments: [LodgingBarSegment]
@@ -48,7 +49,7 @@ struct LodgingBar: View {
         name: @escaping (TripItem) -> String,
         onOpen: @escaping (TripItem) -> Void,
         onEdit: @escaping (TripItem) -> Void,
-        onAdd: @escaping () -> Void
+        onAdd: (() -> Void)?
     ) {
         self.dayNumber = dayNumber
         self.lodging = lodging
@@ -157,8 +158,9 @@ struct LodgingBar: View {
             case .gap:
                 // A window onto floor that spans the whole bar and stays put, so the
                 // hatching and the add label hold still while stays slide over them.
-                Button(action: onAdd) {
-                    floor(invitesAdd: segment.invitesAdd)
+                let invitesAdd = segment.invitesAdd && onAdd != nil
+                Button { onAdd?() } label: {
+                    floor(invitesAdd: invitesAdd)
                         .frame(width: barWidth)
                         .padding(.leading, -barWidth * leading)
                         .frame(width: width, alignment: .leading)
@@ -169,9 +171,9 @@ struct LodgingBar: View {
                         .contentShape(.rect)
                 }
                 .buttonStyle(SteadyButtonStyle())
-                .allowsHitTesting(segment.invitesAdd && !segment.isLeaving)
+                .allowsHitTesting(invitesAdd && !segment.isLeaving)
                 .accessibilityLabel("Add lodging")
-                .accessibilityHidden(!segment.invitesAdd || segment.isLeaving)
+                .accessibilityHidden(!invitesAdd || segment.isLeaving)
             case .stay(let stay):
                 // Laid out at its own width, which a stay sliding on or off keeps while
                 // its window closes over it, holding to the edge that's moving.

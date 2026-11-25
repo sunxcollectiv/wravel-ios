@@ -206,8 +206,8 @@ struct TripDetailView: View {
         ZStack(alignment: .bottom) {
             background
 
-            if let days {
-                dayPager(days)
+            if let pages {
+                dayPager(pages)
                     .ignoresSafeArea(edges: .bottom)
                     // The pages draw past their top edge so cards slide up under the
                     // pinned block; this cuts them off at the block's top, fading in over
@@ -224,9 +224,7 @@ struct TripDetailView: View {
                     // (wide, scrollable) content can never grow the pager or change the
                     // width of the page content behind it.
                     .overlay(alignment: .bottom) {
-                        DaySelectorBar(days: days, selection: $selection, dragProgress: pageDragProgress, onAddSegment: { edge in
-                            segmentRequest = SegmentRequest(edge: edge)
-                        }, segmentEdges: openSegmentEdges, primaryTripId: trip.id)
+                        DaySelectorBar(days: pages.tripDays, selection: $selection, dragProgress: pageDragProgress, primaryTripId: trip.id)
                         // Below its fade, where the circles start.
                         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.detailSpace)).minY + DaySelectorBar.fadeHeight } action: { dayPickerTop = $0 }
                         .revealIn(hasRevealed)
@@ -259,7 +257,11 @@ struct TripDetailView: View {
                         name: { lodgingName($0) },
                         onOpen: showLodgingPopup,
                         onEdit: editItem,
-                        onAdd: { withAnimation(.snappy(duration: 0.25)) { addLodgingDay = selectedDay } }
+                        // After the trip there's nowhere the group is staying, so the
+                        // bar sits there empty, with nothing to add.
+                        onAdd: selectedDay.side == .after ? nil : {
+                            withAnimation(.snappy(duration: 0.25)) { addLodgingDay = selectedDay }
+                        }
                     )
                 }
             }
@@ -348,7 +350,11 @@ struct TripDetailView: View {
 
             HStack(spacing: 6) {
                 Text(trip.title)
-                if let selectedDay {
+                if let side = selectedDay?.side {
+                    Text(side.label)
+                        .foregroundStyle(.white.opacity(0.6))
+                        .fixedSize()
+                } else if let selectedDay {
                     Text("Day \(selectedDay.dayNumber)")
                         .foregroundStyle(.white.opacity(0.6))
                         .contentTransition(.numericText(value: Double(selectedDay.dayNumber)))
@@ -675,11 +681,37 @@ struct TripDetailView: View {
 
     // MARK: - Paged days
 
-    private func dayPager(_ days: [ItineraryDay]) -> some View {
+    private func dayPager(_ pages: ItineraryPages) -> some View {
         // Gap days between the user's trips show only in the day picker.
-        DayPager(days: days.filter { !$0.isGap }, selection: $selection, dragProgress: $pageDragProgress, onSettled: collapseOpenCard) { day, scrollLocked in
+        DayPager(days: pages.all.filter { !$0.isGap }, selection: $selection, dragProgress: $pageDragProgress, onSettled: collapseOpenCard) { day, scrollLocked in
             dayPage(day, scrollLocked: scrollLocked)
         }
+    }
+
+    /// The pages the itinerary swipes through: Before, the trip's days, then After.
+    private var pages: ItineraryPages? {
+        days.map(ItineraryPages.init)
+    }
+
+    /// Whether an item is someone else's: hidden from the user, or open with them not
+    /// on it. On the Before and After pages these are a line of text, not a card.
+    private func isOthers(_ item: TripItem) -> Bool {
+        item.redacted || memberSelection(onTripOf: item.tripId).includesCurrentUser(item) == false
+    }
+
+    /// Which of the page's entries to show: every entry of the user's own items, and
+    /// one line per item of anyone else's, at its arrival before the trip and its
+    /// departure after it (else its first entry on the page).
+    private func shownEntries(on day: ItineraryDay) -> [ItineraryEntry] {
+        guard let side = day.side else { return day.entries }
+        let preferred: ItineraryPhase = side == .before ? .arrival : .departure
+        var lineFor: [String: ItineraryEntry.ID] = [:]
+        for entry in day.entries where isOthers(entry.item) {
+            if lineFor[entry.item.id] == nil || entry.phase == preferred {
+                lineFor[entry.item.id] = entry.id
+            }
+        }
+        return day.entries.filter { entry in lineFor[entry.item.id].map { $0 == entry.id } ?? true }
     }
 
     /// Once a day change has landed, folds away any open card's details, without
@@ -698,23 +730,35 @@ struct TripDetailView: View {
 
     private func dayPage(_ day: ItineraryDay, scrollLocked: Bool) -> some View {
         let zoneChanges = ItineraryZoneChanges.changes(in: days ?? [])
+        let entries = shownEntries(on: day)
         return ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                if day.entries.isEmpty && day.lodging.isEmpty {
-                    Text("Nothing planned")
+                if entries.isEmpty && day.lodging.isEmpty {
+                    Text(emptyText(for: day))
                         .font(.subheadline.italic())
                         .foregroundStyle(Color.appForeground.opacity(0.5))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 100)
                         .revealIn(hasRevealed, delay: Self.cardRevealDelay(0))
                 } else {
-                    ForEach(Array(day.entries.enumerated()), id: \.element.id) { index, entry in
-                        if let zone = zoneChanges[entry.id] {
+                    ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+                        // The Before and After pages run across dates: each new one is labeled.
+                        if day.side != nil, let date = day.date(of: entry),
+                           index == 0 || day.date(of: entries[index - 1]) != date {
+                            sideDateLabel(date)
+                                .revealIn(hasRevealed, delay: Self.cardRevealDelay(index))
+                        }
+                        if let zone = zoneChanges[entry.id], day.side == nil || !isOthers(entry.item) {
                             zoneChangeDivider(zone, at: entry.displayInstant)
                                 .revealIn(hasRevealed, delay: Self.cardRevealDelay(index))
                         }
-                        itemRow(entry, on: day, topFade: topFadeProgress[day.dayNumber] ?? 0)
-                            .revealIn(hasRevealed, delay: Self.cardRevealDelay(index), slide: 16)
+                        if day.side != nil, isOthers(entry.item) {
+                            othersLine(entry)
+                                .revealIn(hasRevealed, delay: Self.cardRevealDelay(index), slide: 16)
+                        } else {
+                            itemRow(entry, on: day, topFade: topFadeProgress[day.dayNumber] ?? 0)
+                                .revealIn(hasRevealed, delay: Self.cardRevealDelay(index), slide: 16)
+                        }
                     }
                 }
 
@@ -725,12 +769,20 @@ struct TripDetailView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "plus")
                             .accessibilityHidden(true)
-                        addItemButton("Activity", kind: .activity, on: day.calendarDate)
-                        Rectangle()
-                            .fill(Color.appForeground.opacity(0.3))
-                            .frame(width: 1, height: 10)
-                            .accessibilityHidden(true)
-                        addItemButton("Transit", kind: .transit, on: day.calendarDate)
+                        if let side = day.side {
+                            // Outside the trip: getting there and back, or another
+                            // segment on that side (one per side, while there's none).
+                            addItemButton("Transit", kind: .transit, on: day.calendarDate)
+                            let edge: HorizontalEdge = side == .before ? .leading : .trailing
+                            if openSegmentEdges.contains(edge) {
+                                addLineDivider
+                                addSegmentButton(edge)
+                            }
+                        } else {
+                            addItemButton("Activity", kind: .activity, on: day.calendarDate)
+                            addLineDivider
+                            addItemButton("Transit", kind: .transit, on: day.calendarDate)
+                        }
                     }
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.appForeground.opacity(0.6))
@@ -741,7 +793,7 @@ struct TripDetailView: View {
                 // Less the buttons' own 6pt above and below.
                 .padding(.top, 8)
                 .padding(.bottom, 4)
-                .revealIn(hasRevealed, delay: Self.cardRevealDelay(day.entries.count) + 0.05)
+                .revealIn(hasRevealed, delay: Self.cardRevealDelay(entries.count) + 0.05)
 
                 // Clear the bottom day-picker bar and the offline pill just above it,
                 // whether or not the pill is showing, so the end of the day never shifts.
@@ -1145,6 +1197,93 @@ struct TripDetailView: View {
         }
     }
 
+    /// What an empty page says.
+    private func emptyText(for day: ItineraryDay) -> String {
+        switch day.side {
+        case .before: "Nothing before the trip"
+        case .after: "Nothing after the trip"
+        case nil: "Nothing planned"
+        }
+    }
+
+    /// The date over the first entry of each date on the Before and After pages, e.g.
+    /// "FRI, NOV 28", left aligned over a faint rule.
+    private func sideDateLabel(_ date: Date) -> some View {
+        HStack(spacing: 10) {
+            Text(date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
+                .font(.caption.weight(.semibold))
+                .textCase(.uppercase)
+                .tracking(1)
+                .foregroundStyle(Color.appForeground.opacity(0.6))
+                .fixedSize()
+            addActivityRule
+        }
+        .padding(.top, 4)
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    /// Someone else's item on the Before or After page as one line of text, e.g. "Sean
+    /// Salim arrives LAX · 9:40 PM": who (or the item's title, when it doesn't say),
+    /// what, where and when.
+    private func othersLine(_ entry: ItineraryEntry) -> some View {
+        let names = entry.item.participants.map { $0.member.user?.displayName ?? $0.member.email }
+        let who: String? = switch names.count {
+        case 0: nil
+        case 1, 2: names.joined(separator: " & ")
+        default: "\(names[0]) + \(names.count - 1) others"
+        }
+        let verb: String? = switch entry.phase {
+        case .arrival: "arrives"
+        case .departure: "leaves"
+        case .layover: "stops"
+        case .checkIn: "checks in"
+        case .checkOut: "checks out"
+        case nil: nil
+        }
+        let place = entry.place.flatMap { $0.code ?? $0.name }
+        var what = [who ?? entry.item.displayTitle, verb, place].compactMap { $0 }.joined(separator: " ")
+        if who == nil, verb == nil, let place { what = "\(entry.item.displayTitle) · \(place)" }
+        let time = entry.timeText(.dateTime.hour().minute())
+        return HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: entry.item.kind == .transit ? "airplane" : "circle.fill")
+                .font(.system(size: entry.item.kind == .transit ? 11 : 4))
+                .frame(width: 14)
+                .accessibilityHidden(true)
+            Text(what)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 8)
+            Text(time)
+                .monospacedDigit()
+        }
+        .font(.footnote.weight(.medium))
+        .foregroundStyle(Color.appForeground.opacity(0.7))
+        .padding(.horizontal, 4)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var addLineDivider: some View {
+        Rectangle()
+            .fill(Color.appForeground.opacity(0.3))
+            .frame(width: 1, height: 10)
+            .accessibilityHidden(true)
+    }
+
+    /// The add line's "Segment", on the Before or After page: a new trip in the group
+    /// on that side of this one.
+    private func addSegmentButton(_ edge: HorizontalEdge) -> some View {
+        Button {
+            segmentRequest = SegmentRequest(edge: edge)
+        } label: {
+            Text("SEGMENT")
+                .tracking(1.5)
+                .padding(.vertical, 6)
+                .contentShape(.rect)
+        }
+        .buttonStyle(SteadyButtonStyle())
+        .accessibilityLabel(edge == .leading ? "Add a segment before the trip" : "Add a segment after the trip")
+    }
+
     /// One word of the add line under a day's items, adding that kind on the day.
     private func addItemButton(_ label: String, kind: TripItemKind, on date: Date?) -> some View {
         Button {
@@ -1214,24 +1353,25 @@ struct TripDetailView: View {
 
     /// The day currently shown in the pager.
     private var selectedDay: ItineraryDay? {
-        days?.first(where: { $0.dayNumber == selection })
+        pages?.all.first(where: { $0.dayNumber == selection })
     }
 
-    /// The day to show after a reload: the day holding the just-saved item when given,
-    /// otherwise the current day if it still exists, falling back to the first day. Never
-    /// a gap day, which has no page (e.g. once the last item on a day outside the trips
-    /// is deleted).
+    /// The page to show after a reload: the page holding the just-saved item when given
+    /// (Before or After for one outside the trip's dates), otherwise the current page if
+    /// it still exists, falling back to the trip's first day. Never a gap day, which has
+    /// no page (e.g. once the last item on a day between trips is deleted).
     private func resolveSelection(in days: [ItineraryDay], focusItemId: String?) -> Int {
+        let pages = ItineraryPages(days: days).all
         if let focusItemId,
-           let day = days.first(where: { day in
+           let day = pages.first(where: { day in
                day.uniqueItems.contains { $0.id == focusItemId }
            }) {
             return day.dayNumber
         }
-        if days.contains(where: { $0.dayNumber == selection && !$0.isGap }) {
+        if pages.contains(where: { $0.dayNumber == selection && !$0.isGap }) {
             return selection
         }
-        return days.first?.dayNumber ?? 1
+        return ItineraryPages(days: days).tripDays.first { !$0.isGap }?.dayNumber ?? 1
     }
 
     /// Drops a deleted item from the itinerary straight away, then reloads to pick up
