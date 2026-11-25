@@ -23,12 +23,6 @@ struct DaySelectorBar: View {
     /// Live itinerary-swipe progress in day-units (-1…1); pulls the row along as the
     /// pages are dragged, before `selection` settles on the final day.
     var dragProgress: CGFloat = 0
-    /// Tapped from the plus button at either end of the row, to add a segment:
-    /// `.leading` for days before the trip, `.trailing` for days after.
-    var onAddSegment: (HorizontalEdge) -> Void = { _ in }
-    /// The ends that show the plus button; an end left out keeps its empty cell, so the
-    /// row's layout doesn't change.
-    var segmentEdges: Set<HorizontalEdge> = [.leading, .trailing]
     /// The trip the screen is for: its days' line is solid, its extensions' hatched.
     var primaryTripId: String?
 
@@ -61,10 +55,11 @@ struct DaySelectorBar: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     GlassEffectContainer(spacing: 2) {
                         HStack(spacing: 0) {
-                            // The add-segment buttons sit in the side insets, so the first
-                            // and last days still scroll to center.
-                            segmentEnd(.leading)
+                            // Before and After sit in the side insets, so the first and
+                            // last days still scroll to center.
+                            sideCell(.before)
                                 .frame(width: cellWidth)
+                                .id(ItineraryDay.beforePageNumber)
                             ForEach(cells) { cell in
                                 switch cell {
                                 case .day(let day):
@@ -76,8 +71,9 @@ struct DaySelectorBar: View {
                                         .frame(width: cellWidth)
                                 }
                             }
-                            segmentEnd(.trailing)
+                            sideCell(.after)
                                 .frame(width: cellWidth)
+                                .id(ItineraryDay.afterPageNumber)
                         }
                         .padding(.horizontal, max(sideInset - cellWidth, 0))
                         // Track the itinerary swipe: one day-width of travel per full page drag.
@@ -145,9 +141,9 @@ struct DaySelectorBar: View {
 
     /// A white line under each run of days on one trip, reaching the screen edges at the
     /// ends of the journey, with a short break where one trip meets the next and none
-    /// under gap days. `origin` is where the leading plus cell starts on screen.
+    /// under gap days. `origin` is where the Before cell starts on screen.
     private func tripLines(cellWidth: CGFloat, origin: CGFloat, width: CGFloat) -> some View {
-        // Each run of cells sharing a trip, by cell index (the plus cell is 0). A day
+        // Each run of cells sharing a trip, by cell index (the Before cell is 0). A day
         // no trip covers (a flight before the trip, say) joins the run it sits beside.
         var runs: [(trip: String?, first: Int, last: Int)] = []
         for (offset, cell) in cells.enumerated() {
@@ -272,33 +268,40 @@ struct DaySelectorBar: View {
         .accessibilityLabel(isRange ? "No trip \(first) to \(last)" : "No trip \(first)")
     }
 
-    /// A small dark plus disc past the first or last day, for adding days on that side.
-    /// Smaller than the day circles so it reads as an action, not another day.
-    @ViewBuilder
-    private func segmentEnd(_ edge: HorizontalEdge) -> some View {
-        if segmentEdges.contains(edge) {
-            addSegmentButton(edge)
-        } else {
-            Color.clear
-        }
-    }
-
-    private func addSegmentButton(_ edge: HorizontalEdge) -> some View {
-        Button {
-            onAddSegment(edge)
+    /// "BEFORE" or "AFTER" past the first or last day, opening the page of everything
+    /// outside the trip's dates on that side. Bare text rather than a circle, so it
+    /// reads as a section, not another day, set off from the days by a faint rule;
+    /// brighter while its page is shown.
+    private func sideCell(_ side: ItinerarySide) -> some View {
+        let number = side == .before ? ItineraryDay.beforePageNumber : ItineraryDay.afterPageNumber
+        let isSelected = selection == number
+        return Button {
+            selection = number
         } label: {
-            Image(systemName: "plus")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(Color.appForeground.opacity(0.9))
-                .frame(width: 36, height: 36)
-                .background(Color(white: 0.1).opacity(0.9), in: .circle)
-                .overlay(Circle().strokeBorder(Color(white: 0.28), lineWidth: 1))
-                .shadow(color: .black.opacity(0.25), radius: 6, y: 3)
+            Text(side.label.uppercased())
+                .font(.system(size: 10, weight: isSelected ? .heavy : .semibold))
+                .tracking(1.2)
+                .foregroundStyle(Color.appForeground.opacity(isSelected ? 1 : 0.55))
+                .fixedSize()
+                .animation(.easeInOut(duration: 0.25), value: isSelected)
+                // Nudged out toward the screen edge, for room between it and the rule.
+                .offset(x: side == .before ? -26 : 26)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(.rect)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(edge == .leading ? "Add a segment before the trip" : "Add a segment after the trip")
+        // The rule sits well inside the cell's edge facing the days, clear of
+        // the first circle by about three times the gap between circles.
+        .overlay(alignment: side == .before ? .trailing : .leading) {
+            Rectangle()
+                .fill(Color.appForeground.opacity(0.2))
+                .frame(width: 1, height: 28)
+                .offset(x: side == .before ? -21 : 21)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+        .accessibilityLabel(side == .before ? "Before the trip" : "After the trip")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private func dayCell(_ day: ItineraryDay) -> some View {

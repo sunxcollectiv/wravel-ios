@@ -44,6 +44,11 @@ struct ItineraryDay: Decodable, Identifiable {
     /// The trip this date belongs to (on a date two trips share, the one the other was
     /// added to). Nil for a date none covers, or from a server that doesn't send it.
     let tripId: String?
+    /// Set on the Before or After page the trip screen builds (see `ItineraryPages`),
+    /// never on a day from the server.
+    var side: ItinerarySide? = nil
+    /// On a Before or After page, the "yyyy-MM-dd" date each entry falls on, by entry id.
+    var entryDates: [String: String] = [:]
 
     var id: Int { dayNumber }
 
@@ -85,13 +90,15 @@ struct ItineraryDay: Decodable, Identifiable {
         }
     }
 
-    init(date: String, dayNumber: Int, lodging: [LodgingStay], entries: [ItineraryEntry], isGap: Bool = false, tripId: String? = nil) {
+    init(date: String, dayNumber: Int, lodging: [LodgingStay], entries: [ItineraryEntry], isGap: Bool = false, tripId: String? = nil, side: ItinerarySide? = nil, entryDates: [String: String] = [:]) {
         self.date = date
         self.dayNumber = dayNumber
         self.lodging = lodging
         self.entries = entries
         self.isGap = isGap
         self.tripId = tripId
+        self.side = side
+        self.entryDates = entryDates
     }
 
     /// This day without any entries or lodging for the given item, e.g. once it's deleted.
