@@ -55,6 +55,13 @@ struct TripMember: Codable, Identifiable, Equatable {
     var email: String
     var user: User?
     var role: TripRole
+    /// What to call them: their account's name once they have one, else the name an
+    /// organizer gave them. Nil when there's neither, or from a server that doesn't
+    /// send it yet.
+    var displayName: String? = nil
+
+    /// The name to show for them, if there is one.
+    var name: String? { displayName ?? user?.displayName }
 }
 
 extension Trip {
@@ -128,6 +135,7 @@ extension Trip {
 ///     GET   /trips             -> [TripRead]
 ///     POST  /trips  TripCreate -> TripRead (201)
 ///     PATCH /trips/{id} TripUpdate -> TripRead
+///     PATCH /trips/{id}/members/{member_id} TripMemberUpdate -> TripMemberRead
 enum TripsAPI {
     /// `TripCreate` — body for `POST /trips`. An optional `timezone` (IANA) seeds every
     /// day of the trip with that zone, so items can be added without picking a zone each
@@ -178,10 +186,27 @@ enum TripsAPI {
         }
     }
 
-    /// `TripMemberCreate`. A nil `role` lets the server default to `member`.
+    /// `TripMemberCreate`. A nil `role` lets the server default to `member`. `name` is
+    /// what to call someone until they have an account; nil leaves it out, which keeps
+    /// the name of someone already on the trip.
     struct MemberRequest: Encodable, Equatable {
         let email: String
         var role: TripRole?
+        var name: String?
+    }
+
+    /// `TripMemberUpdate` — body for `PATCH /trips/{id}/members/{member_id}`. Only the
+    /// name for now; nil clears it.
+    struct MemberUpdate: Encodable, Equatable {
+        var name: String?
+
+        private enum CodingKeys: String, CodingKey { case name }
+
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            // Always sent: a left-out name is kept, so clearing one needs the null.
+            try c.encode(name, forKey: .name)
+        }
     }
 
     static let list = Endpoint(path: "/trips", cachesResponse: true)
@@ -208,6 +233,11 @@ enum TripsAPI {
     /// What `update(id:body)` would charge (or refund). Organizers only.
     static func quote(id: String, _ body: CreateRequest) -> Endpoint {
         Endpoint(path: "/trips/\(id)/quote", method: .post, body: body)
+    }
+
+    /// Organizers only; renames one person on the trip -> `TripMemberRead`.
+    static func updateMember(tripId: String, memberId: String, _ body: MemberUpdate) -> Endpoint {
+        Endpoint(path: "/trips/\(tripId)/members/\(memberId)", method: .patch, body: body)
     }
 
     /// Owner only; deletes the trip with everything on it. 204.

@@ -84,8 +84,8 @@ struct ItemMembersPopup: View {
     }
 }
 
-/// A member as the member lists show them: an initial in a circle, their name (or
-/// email) with "(You)" for the signed-in user, and their email under a name.
+/// A member as the member lists show them: an initial in a circle, their name (their
+/// account's, else one an organizer gave them, else their email) with "(You)" for the signed-in user, and their email under a name.
 /// `detail` replaces the email line, e.g. with the room they're in.
 struct MemberIdentity: View {
     let member: TripMember
@@ -94,18 +94,15 @@ struct MemberIdentity: View {
 
     var body: some View {
         let isYou = member.user?.id != nil && member.user?.id == currentUserId
-        let name = member.user?.displayName ?? member.email
+        let name = member.name ?? member.email
         HStack(spacing: 12) {
-            Text(String(name.first(where: \.isLetter) ?? "?").uppercased())
-                .font(.subheadline.weight(.semibold))
-                .frame(width: 32, height: 32)
-                .background(Color.appForeground.opacity(0.18), in: .circle)
+            MemberInitial(name: name)
             VStack(alignment: .leading, spacing: 2) {
                 Text(isYou ? "\(name) (You)" : name)
                     .font(.subheadline)
                     .lineLimit(1)
-                // Members without an account only have their email, already shown.
-                if let line = detail ?? (member.user != nil ? member.email : nil) {
+                // Members without a name only have their email, already shown.
+                if let line = detail ?? (member.name != nil ? member.email : nil) {
                     Text(line)
                         .font(.caption)
                         .foregroundStyle(Color.appForeground.opacity(0.6))
