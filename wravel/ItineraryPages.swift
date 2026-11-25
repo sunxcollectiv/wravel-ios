@@ -26,7 +26,8 @@ enum ItinerarySide {
 /// them). Everything the server puts on a date before or after that, whatever the
 /// date, is gathered onto the Before or After page instead of a page per day. A
 /// transit that touches one of those dates is shown there in full, every leg and
-/// end of it, even the end that lands within the trip.
+/// end of it, even the end that lands within the trip. Before's lodging is the stay
+/// for the night before the trip; After has none.
 struct ItineraryPages {
     let before: ItineraryDay
     let tripDays: [ItineraryDay]
@@ -45,15 +46,23 @@ struct ItineraryPages {
             return
         }
         tripDays = Array(days[first...last])
-        before = Self.page(.before, outside: Array(days[..<first]), all: days, date: Self.shift(days[first].date, by: -1))
+        let eve = Self.shift(days[first].date, by: -1)
+        before = Self.page(
+            .before, outside: Array(days[..<first]), all: days, date: eve,
+            // The night before the trip, if the server sent that date.
+            lodging: days[..<first].last(where: { $0.date == eve })?.lodging ?? []
+        )
         after = Self.page(.after, outside: Array(days[(last + 1)...]), all: days, date: Self.shift(days[last].date, by: 1))
     }
 
     /// One side's page: each item on the `outside` dates, in the order they come up,
     /// a transit with all its entries from `all`, anything else with just its entries
     /// on those dates. `date` is the date next to the trip on that side, for an item
-    /// added from the page.
-    private static func page(_ side: ItinerarySide, outside: [ItineraryDay], all: [ItineraryDay], date: String?) -> ItineraryDay {
+    /// added from the page, and `lodging` what its lodging bar shows.
+    private static func page(
+        _ side: ItinerarySide, outside: [ItineraryDay], all: [ItineraryDay], date: String?,
+        lodging: [LodgingStay] = []
+    ) -> ItineraryDay {
         var order: [String] = []
         var entriesByItem: [String: [(date: String, entry: ItineraryEntry)]] = [:]
         for day in outside {
@@ -74,7 +83,7 @@ struct ItineraryPages {
         return ItineraryDay(
             date: date ?? outside.first?.date ?? "",
             dayNumber: side == .before ? ItineraryDay.beforePageNumber : ItineraryDay.afterPageNumber,
-            lodging: [],
+            lodging: lodging,
             entries: flattened.map(\.entry),
             side: side,
             entryDates: Dictionary(flattened.map { ($0.entry.id, $0.date) }, uniquingKeysWith: { first, _ in first })

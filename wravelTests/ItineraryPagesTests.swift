@@ -55,6 +55,20 @@ struct ItineraryPagesTests {
         #expect(pages.tripDays[0].entries.map(\.id) == ["red-eye|arrival|", "parade||"])
     }
 
+    @Test func beforeHasTheEvesLodgingAndAfterHasNone() {
+        let hotel = LodgingStay(item: entry("hotel", .lodging).item, phase: .checkIn)
+        let checkout = LodgingStay(item: entry("hotel", .lodging).item, phase: .checkOut)
+        let pages = ItineraryPages(days: [
+            ItineraryDay(date: "2026-11-20", dayNumber: -5, lodging: [LodgingStay(item: entry("motel", .lodging).item, phase: .staying)], entries: [], tripId: nil),
+            ItineraryDay(date: "2026-11-25", dayNumber: 0, lodging: [hotel], entries: [], tripId: nil),
+            day("2026-11-26", 1, trip: "t"),
+            ItineraryDay(date: "2026-11-27", dayNumber: 2, lodging: [checkout], entries: [], tripId: nil),
+        ])
+
+        #expect(pages.before.lodging.map(\.item.id) == ["hotel"])
+        #expect(pages.after.lodging.isEmpty)
+    }
+
     @Test func withoutTripIdsEveryDateIsATripDay() {
         let pages = ItineraryPages(days: [
             day("2026-11-26", 1, trip: nil, [entry("parade")]),

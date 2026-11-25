@@ -249,16 +249,19 @@ struct TripDetailView: View {
             // The header and the day's lodging stay pinned while the cards scroll, joined
             // into one block: square where they meet, rounded on the outside.
             VStack(spacing: 0) {
-                // The Before and After pages span many dates, so there's no one stay to show.
-                header(joinsLodging: selectedDay != nil && selectedDay?.side == nil)
-                if let selectedDay, selectedDay.side == nil {
+                header(joinsLodging: selectedDay != nil)
+                if let selectedDay {
                     LodgingBar(
                         dayNumber: selectedDay.dayNumber,
                         lodging: selectedDay.lodging,
                         name: { lodgingName($0) },
                         onOpen: showLodgingPopup,
                         onEdit: editItem,
-                        onAdd: { withAnimation(.snappy(duration: 0.25)) { addLodgingDay = selectedDay } }
+                        // After the trip there's nowhere the group is staying, so the
+                        // bar sits there empty, with nothing to add.
+                        onAdd: selectedDay.side == .after ? nil : {
+                            withAnimation(.snappy(duration: 0.25)) { addLodgingDay = selectedDay }
+                        }
                     )
                 }
             }
