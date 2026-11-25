@@ -73,4 +73,57 @@ struct TripMembersTests {
         let object = try JSONSerialization.jsonObject(with: encoder.encode(body)) as? [String: Any]
         #expect(object?["members"] == nil)
     }
+
+    private func encodedObject(_ value: some Encodable) throws -> [String: Any]? {
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        return try JSONSerialization.jsonObject(with: encoder.encode(value)) as? [String: Any]
+    }
+
+    @Test func memberNameFallsBackFromAccountToGivenName() throws {
+        let json = """
+        [
+          {"id": "m1", "email": "sam@example.com", "role": "member", "display_name": "Sammy",
+           "user": {"id": "u1", "email": "sam@example.com", "display_name": "Sammy",
+                    "avatar_url": null, "created_at": "2026-10-01T00:00:00Z"}},
+          {"id": "m2", "email": "jesse@example.com", "role": "member", "display_name": "Jesse", "user": null},
+          {"id": "m3", "email": "pat@example.com", "role": "member", "display_name": null, "user": null},
+          {"id": "m4", "email": "old@example.com", "role": "member",
+           "user": {"id": "u4", "email": "old@example.com", "display_name": "Old Server",
+                    "avatar_url": null, "created_at": "2026-10-01T00:00:00Z"}}
+        ]
+        """
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        decoder.dateDecodingStrategy = .iso8601
+        let members = try decoder.decode([TripMember].self, from: Data(json.utf8))
+
+        #expect(members.map(\.name) == ["Sammy", "Jesse", nil, "Old Server"])
+    }
+
+    @Test func memberRequestSendsNameOnlyWhenGiven() throws {
+        let body = TripsAPI.CreateRequest(
+            title: "Tokyo", description: nil, startDate: "2026-11-01", endDate: "2026-11-05",
+            members: [.init(email: "jesse@example.com", name: "Jesse"), .init(email: "sam@example.com")]
+        )
+        let members = try #require(try encodedObject(body)?["members"] as? [[String: Any]])
+        #expect(members[0]["name"] as? String == "Jesse")
+        // Left out, so the server keeps the name someone already on the trip has.
+        #expect(members[1].keys.contains("name") == false)
+    }
+
+    @Test func memberUpdateSendsNullToClearTheName() throws {
+        let renamed = try #require(try encodedObject(TripsAPI.MemberUpdate(name: "Jesse")))
+        #expect(renamed as NSDictionary == ["name": "Jesse"])
+
+        let cleared = try #require(try encodedObject(TripsAPI.MemberUpdate(name: nil)))
+        #expect(cleared.keys.sorted() == ["name"])
+        #expect(cleared["name"] is NSNull)
+    }
+
+    @Test func updateMemberPatchesThatMember() {
+        let endpoint = TripsAPI.updateMember(tripId: "t1", memberId: "m2", .init(name: "Jesse"))
+        #expect(endpoint.path == "/trips/t1/members/m2")
+        #expect(endpoint.method == .patch)
+    }
 }

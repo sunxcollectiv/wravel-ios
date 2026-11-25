@@ -43,6 +43,11 @@ struct TripFormView: View {
     /// `memberEmails` as the trip had it when the form opened, so an edit only sends
     /// the roster when it changed.
     private let originalMemberEmails: [String]
+    /// What to call people without an account, by email, as set on their member cards.
+    @State private var memberNames: [String: String]
+    /// `memberNames` as the trip had it when the form opened, so saving only renames
+    /// the people whose name changed.
+    private let originalMemberNames: [String: String]
     @State private var showingMemberInvite = false
     /// Whether saving an edit tells the trip's other members what changed.
     @State private var notifyMembers = false
@@ -94,6 +99,15 @@ struct TripFormView: View {
         let others = (trip?.members ?? []).filter { $0.user?.id != trip?.ownerId }.map(\.email)
         originalMemberEmails = others
         _memberEmails = State(initialValue: others)
+        // Only names set for people without an account; an account's own name wins.
+        let names = Dictionary(
+            (trip?.members ?? []).compactMap { member in
+                member.user == nil ? member.displayName.map { (member.email, $0) } : nil
+            },
+            uniquingKeysWith: { first, _ in first }
+        )
+        originalMemberNames = names
+        _memberNames = State(initialValue: names)
         _isLoadingOwnDates = State(initialValue: trip?.extensions?.isEmpty == false)
     }
 
@@ -326,11 +340,35 @@ struct TripFormView: View {
 
     /// The `members` to send, or nil to leave the roster alone when nothing changed.
     /// The server replaces the roster with this list, so people already on the trip
-    /// keep their current role; new ones get the default.
+    /// keep their current role; new ones get the default, and the name given on their
+    /// card. People already on the trip keep their name here; see `renamesToSave`.
     private var membersToSave: [TripsAPI.MemberRequest]? {
         guard memberEmails != originalMemberEmails else { return nil }
-        let roles = Dictionary((trip?.members ?? []).map { ($0.email, $0.role) }, uniquingKeysWith: { first, _ in first })
-        return memberEmails.map { TripsAPI.MemberRequest(email: $0, role: roles[$0]) }
+        let existing = Dictionary((trip?.members ?? []).map { ($0.email, $0) }, uniquingKeysWith: { first, _ in first })
+        return memberEmails.map { email in
+            let member = existing[email]
+            return TripsAPI.MemberRequest(email: email, role: member?.role, name: member == nil ? namesToSave[email] : nil)
+        }
+    }
+
+    /// People already on the trip, without an account, whose name was changed on their
+    /// card, with the name to give them (nil clears it). Sent one by one after the trip
+    /// saves, through the member endpoint.
+    private var renamesToSave: [(member: TripMember, name: String?)] {
+        (trip?.members ?? []).compactMap { member in
+            guard member.user == nil, memberEmails.contains(member.email) else { return nil }
+            let name = namesToSave[member.email]
+            return name == originalMemberNames[member.email] ? nil : (member, name)
+        }
+    }
+
+    /// `memberNames` trimmed, without blank ones: the popup can close straight from a
+    /// member card, before it tidies the name typed there.
+    private var namesToSave: [String: String] {
+        memberNames.compactMapValues { name in
+            let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
     }
 
     /// An area's chip, with a button that toggles marking it for removal.
@@ -428,9 +466,22 @@ struct TripFormView: View {
     private var memberInvitePopup: some View {
         if showingMemberInvite {
             DimmedPopup(onClose: closeMemberInvite) {
-                MemberInvitePopup(emails: $memberEmails, onClose: closeMemberInvite)
+                MemberInvitePopup(
+                    emails: $memberEmails,
+                    names: $memberNames,
+                    accountNames: accountNames,
+                    onClose: closeMemberInvite
+                )
             }
         }
+    }
+
+    /// The account name of everyone on the trip who has one, by email.
+    private var accountNames: [String: String] {
+        Dictionary(
+            (trip?.members ?? []).compactMap { member in member.user.map { (member.email, $0.displayName) } },
+            uniquingKeysWith: { first, _ in first }
+        )
     }
 
     private func closeCharge() {
@@ -477,7 +528,7 @@ struct TripFormView: View {
     private var ownerNameIfNotPayer: String? {
         guard let trip, let ownerId = trip.ownerId, ownerId != auth.currentUser?.id else { return nil }
         let owner = trip.members?.first { $0.user?.id == ownerId }
-        return owner?.user?.displayName ?? owner?.email ?? "the trip's owner"
+        return owner?.name ?? owner?.email ?? "the trip's owner"
     }
 
     private func confirmCharge(_ charge: PendingCharge) {
@@ -568,10 +619,19 @@ struct TripFormView: View {
         body.expectedPriceCents = quote.priceCents
         do {
             let endpoint = trip.map { TripsAPI.update(id: $0.id, body) } ?? TripsAPI.create(body)
-            let saved = try await api.send(endpoint, as: Trip.self)
+            var saved = try await api.send(endpoint, as: Trip.self)
             if quote.priceCents > 0 || quote.refundCents > 0 {
                 // What was charged or refunded is on the balance now.
                 Task { await credits.load() }
+            }
+            do {
+                try await saveRenames(into: &saved)
+            } catch {
+                // The trip itself is saved; keep the form open so the names can be
+                // saved again.
+                onSaved(saved)
+                errorMessage = "Saved the trip, but couldn't save the members' names. Try again."
+                return
             }
             onSaved(saved)
             dismiss()
@@ -580,6 +640,21 @@ struct TripFormView: View {
             await quoteThenSave(body, retrying: true)
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Renames the people whose name changed (see `renamesToSave`), patching each
+    /// result into `saved`'s members.
+    private func saveRenames(into saved: inout Trip) async throws {
+        for rename in renamesToSave {
+            let body = TripsAPI.MemberUpdate(name: rename.name)
+            let updated = try await api.send(
+                TripsAPI.updateMember(tripId: saved.id, memberId: rename.member.id, body),
+                as: TripMember.self
+            )
+            if let index = saved.members?.firstIndex(where: { $0.id == updated.id }) {
+                saved.members?[index] = updated
+            }
         }
     }
 

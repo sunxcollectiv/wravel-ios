@@ -401,7 +401,7 @@ final class TripItemDraft {
     func occupantNames(of room: LodgingRoom, currentUserId: String?) -> String? {
         let names = members.filter { room.occupants.contains($0.id) }.map { member in
             if let userId = member.user?.id, userId == currentUserId { return "You" }
-            return member.user?.displayName ?? String(member.email.prefix { $0 != "@" })
+            return member.name ?? String(member.email.prefix { $0 != "@" })
         }
         switch names.count {
         case 0: return nil
